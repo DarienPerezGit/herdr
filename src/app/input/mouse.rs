@@ -1843,7 +1843,7 @@ fn apply_scroll(scroll: &mut usize, delta: i16, max_scroll: usize) {
 
 #[cfg(test)]
 mod tests {
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
     use ratatui::layout::{Direction, Rect};
 
     use super::super::{
@@ -3972,5 +3972,73 @@ mod tests {
         };
 
         assert_eq!(wheel_routing(input_state), WheelRouting::HostScroll);
+    }
+
+    #[test]
+    fn mouse_move_records_last_mouse_position() {
+        let mut app = app_for_mouse_test();
+        app.state.last_mouse_position = None;
+        app.handle_mouse(mouse(MouseEventKind::Moved, 7, 11));
+        assert_eq!(app.state.last_mouse_position, Some((7, 11)));
+    }
+
+    #[test]
+    fn focus_lost_clears_last_mouse_position() {
+        let mut app = app_for_mouse_test();
+        app.state.last_mouse_position = Some((3, 4));
+        app.route_client_events(
+            vec![crate::raw_input::RawInputEvent::OuterFocusLost],
+            false,
+        );
+        assert_eq!(app.state.last_mouse_position, None);
+    }
+
+    #[test]
+    fn key_press_clears_last_mouse_position() {
+        let mut app = app_for_mouse_test();
+        app.state.last_mouse_position = Some((9, 9));
+        app.route_client_events(
+            vec![crate::raw_input::RawInputEvent::Key(
+                crate::input::TerminalKey::new(KeyCode::Char('j'), KeyModifiers::empty())
+                    .with_kind(KeyEventKind::Press),
+            )],
+            false,
+        );
+        assert_eq!(app.state.last_mouse_position, None);
+    }
+
+    #[tokio::test]
+    async fn raw_input_event_records_mouse_position() {
+        let mut app = app_for_mouse_test();
+        app.state.last_mouse_position = None;
+        let event = crate::raw_input::RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind: MouseEventKind::Moved,
+            column: 5,
+            row: 8,
+            modifiers: KeyModifiers::empty(),
+        });
+        app.handle_raw_input_event(event).await;
+        assert_eq!(app.state.last_mouse_position, Some((5, 8)));
+    }
+
+    #[tokio::test]
+    async fn raw_input_event_key_clears_mouse_position() {
+        let mut app = app_for_mouse_test();
+        app.state.last_mouse_position = Some((3, 3));
+        let event = crate::raw_input::RawInputEvent::Key(
+            crate::input::TerminalKey::new(KeyCode::Char('x'), KeyModifiers::empty())
+                .with_kind(KeyEventKind::Press),
+        );
+        app.handle_raw_input_event(event).await;
+        assert_eq!(app.state.last_mouse_position, None);
+    }
+
+    #[tokio::test]
+    async fn raw_input_event_focus_lost_clears_mouse_position() {
+        let mut app = app_for_mouse_test();
+        app.state.last_mouse_position = Some((3, 3));
+        let event = crate::raw_input::RawInputEvent::OuterFocusLost;
+        app.handle_raw_input_event(event).await;
+        assert_eq!(app.state.last_mouse_position, None);
     }
 }

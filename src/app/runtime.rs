@@ -139,6 +139,7 @@ impl App {
         let previous_mode = self.state.mode;
         let changed = match event {
             crate::raw_input::RawInputEvent::Key(key) => {
+                self.state.last_mouse_position = None;
                 let pressed_key_id = pressed_key_identity(super::LOCAL_INPUT_SOURCE, &key);
                 match key.kind {
                     crossterm::event::KeyEventKind::Press => {
@@ -201,6 +202,7 @@ impl App {
                 if self.state.popup_pane.is_some() || self.state.mouse_capture {
                     self.handle_mouse(mouse);
                 } else {
+                    self.state.last_mouse_position = Some((mouse.column, mouse.row));
                     self.state
                         .handle_pane_mouse_only(&self.terminal_runtimes, mouse);
                 }
@@ -216,6 +218,7 @@ impl App {
                 true
             }
             crate::raw_input::RawInputEvent::OuterFocusLost => {
+                self.state.last_mouse_position = None;
                 self.release_input_source(super::LOCAL_INPUT_SOURCE).await;
                 self.send_outer_focus_event(crate::ghostty::FocusEvent::Lost);
                 self.state.outer_terminal_focus = Some(false);

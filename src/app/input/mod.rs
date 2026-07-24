@@ -264,6 +264,7 @@ impl App {
         source_id: super::InputSourceId,
         mouse: MouseEvent,
     ) {
+        self.state.last_mouse_position = Some((mouse.column, mouse.row));
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
                 self.pending_url_click_sources.remove(&source_id);

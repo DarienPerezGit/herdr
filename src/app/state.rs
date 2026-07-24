@@ -1476,6 +1476,11 @@ pub struct AppState {
     /// Last reported focus state for the outer terminal hosting herdr.
     /// None means unsupported or not yet reported, which preserves active-pane suppression.
     pub outer_terminal_focus: Option<bool>,
+    /// Last known screen-space position of the mouse cursor.
+    /// Cleared on any key press or when the host terminal loses focus so the
+    /// UI never shows a stale hover highlight while the user is on the
+    /// keyboard or working in another window.
+    pub last_mouse_position: Option<(u16, u16)>,
     // Config
     pub prefix_code: KeyCode,
     pub prefix_mods: KeyModifiers,
@@ -1857,6 +1862,7 @@ impl AppState {
             pending_agent_notifications: std::collections::HashMap::new(),
             copy_feedback: None,
             outer_terminal_focus: None,
+            last_mouse_position: None,
             prefix_code: KeyCode::Char('b'),
             prefix_mods: KeyModifiers::CONTROL,
             default_sidebar_width: 26,

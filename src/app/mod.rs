@@ -612,6 +612,7 @@ impl App {
             pending_agent_notifications: std::collections::HashMap::new(),
             copy_feedback: None,
             outer_terminal_focus: None,
+            last_mouse_position: None,
             prefix_code,
             prefix_mods,
             default_sidebar_width: config.ui.sidebar_width,
@@ -1615,6 +1616,7 @@ impl App {
             let previous_mode = self.state.mode;
             match event {
                 crate::raw_input::RawInputEvent::Key(key) => {
+                    self.state.last_mouse_position = None;
                     let pressed_key_id = pressed_key_identity(source_id, &key);
                     match key.kind {
                         crossterm::event::KeyEventKind::Press => {
@@ -1668,6 +1670,7 @@ impl App {
                     if self.state.popup_pane.is_some() || self.state.mouse_capture {
                         self.handle_mouse_event_headless(source_id, mouse);
                     } else {
+                        self.state.last_mouse_position = Some((mouse.column, mouse.row));
                         self.state
                             .handle_pane_mouse_only(&self.terminal_runtimes, mouse);
                     }
@@ -1696,6 +1699,7 @@ impl App {
                     self.send_outer_focus_event(crate::ghostty::FocusEvent::Gained);
                 }
                 crate::raw_input::RawInputEvent::OuterFocusLost => {
+                    self.state.last_mouse_position = None;
                     self.release_input_source_headless(source_id);
                     self.send_outer_focus_event(crate::ghostty::FocusEvent::Lost);
                 }
