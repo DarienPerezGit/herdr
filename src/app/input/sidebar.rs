@@ -196,6 +196,51 @@ impl AppState {
         Rect::new(x, footer.y, width, footer.height)
     }
 
+    pub(crate) fn is_new_button_hovered(&self) -> bool {
+        let Some((col, row)) = self.last_mouse_position else { return false };
+        let rect = self.sidebar_new_button_rect();
+        col >= rect.x
+            && col < rect.x + rect.width
+            && row >= rect.y
+            && row < rect.y + rect.height
+    }
+
+    pub(crate) fn is_menu_button_hovered(&self) -> bool {
+        let Some((col, row)) = self.last_mouse_position else { return false };
+        let rect = self.global_launcher_rect();
+        col >= rect.x
+            && col < rect.x + rect.width
+            && row >= rect.y
+            && row < rect.y + rect.height
+    }
+
+    pub(crate) fn hovered_workspace_idx(&self) -> Option<usize> {
+        let (col, row) = self.last_mouse_position?;
+        self.view.workspace_card_areas.iter().find_map(|card| {
+            if col >= card.rect.x
+                && col < card.rect.x + card.rect.width
+                && row >= card.rect.y
+                && row < card.rect.y + card.rect.height
+            {
+                Some(card.ws_idx)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub(crate) fn hovered_agent_details(&self) -> Option<(usize, usize, crate::layout::PaneId)> {
+        let (col, row) = self.last_mouse_position?;
+        let detail_area = self.agent_panel_rect();
+        if detail_area == Rect::default()
+            || col < detail_area.x
+            || col >= detail_area.x + detail_area.width
+        {
+            return None;
+        }
+        self.agent_detail_target_at(row)
+    }
+
     pub(crate) fn global_menu_labels(&self) -> Vec<&'static str> {
         let mut labels = vec!["settings", "keybinds", "reload config"];
         if self.update_available.is_some() {

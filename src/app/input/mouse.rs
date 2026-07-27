@@ -4041,4 +4041,52 @@ mod tests {
         app.handle_raw_input_event(event).await;
         assert_eq!(app.state.last_mouse_position, None);
     }
+
+    #[test]
+    fn new_button_hover_returns_true_when_position_inside() {
+        let mut app = app_for_mouse_test();
+        app.state.view.sidebar_rect = Rect::new(0, 0, 26, 20);
+        let rect = app.state.sidebar_new_button_rect();
+        // With sidebar_rect set, the footer should be at row 19
+        assert!(!app.state.sidebar_collapsed, "sidebar should be expanded");
+        app.state.last_mouse_position = Some((rect.x + 1, rect.y));
+        assert!(app.state.is_new_button_hovered());
+    }
+
+    #[test]
+    fn new_button_hover_returns_false_outside() {
+        let mut app = app_for_mouse_test();
+        app.state.last_mouse_position = Some((0, 0));
+        assert!(!app.state.is_new_button_hovered());
+        app.state.last_mouse_position = None;
+        assert!(!app.state.is_new_button_hovered());
+    }
+
+    #[test]
+    fn menu_button_hover_returns_true_when_position_inside() {
+        let mut app = app_for_mouse_test();
+        app.state.view.sidebar_rect = Rect::new(0, 0, 26, 20);
+        let rect = app.state.global_launcher_rect();
+        app.state.last_mouse_position = Some((rect.x + 1, rect.y));
+        assert!(app.state.is_menu_button_hovered());
+    }
+
+    #[test]
+    fn hovered_workspace_idx_returns_correct_index() {
+        let mut app = app_for_mouse_test();
+        use crate::app::state::WorkspaceCardArea;
+        app.state.view.workspace_card_areas = vec![
+            WorkspaceCardArea { ws_idx: 0, rect: Rect::new(0, 2, 25, 1), indented: false },
+            WorkspaceCardArea { ws_idx: 1, rect: Rect::new(0, 3, 25, 1), indented: false },
+            WorkspaceCardArea { ws_idx: 2, rect: Rect::new(0, 4, 25, 1), indented: false },
+        ];
+        app.state.last_mouse_position = Some((5, 3));
+        assert_eq!(app.state.hovered_workspace_idx(), Some(1));
+    }
+
+    #[test]
+    fn hovered_workspace_idx_returns_none_without_position() {
+        let app = app_for_mouse_test();
+        assert_eq!(app.state.hovered_workspace_idx(), None);
+    }
 }

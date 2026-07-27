@@ -1143,6 +1143,7 @@ fn render_workspace_list(
     let metrics = workspace_list_scroll_metrics(app, area);
     let scrollbar_rect = workspace_list_scrollbar_rect(app, area);
     let cards = &app.view.workspace_card_areas;
+    let hovered_ws = app.hovered_workspace_idx();
 
     for card in cards {
         let i = card.ws_idx;
@@ -1152,7 +1153,8 @@ fn render_workspace_list(
         let selected = i == app.selected && is_navigating;
         let is_active = Some(i) == app.active;
         let is_dragged = dragged_ws_idx == Some(i);
-        let highlighted = selected || is_active || is_dragged;
+        let is_hovered = hovered_ws == Some(i);
+        let highlighted = selected || is_active || is_dragged || is_hovered;
         let (agg_state, agg_seen) = ws.aggregate_state(&app.terminals);
 
         if highlighted {
@@ -1174,7 +1176,7 @@ fn render_workspace_list(
             }
         }
 
-        let name_style = if selected || is_active || is_dragged {
+        let name_style = if selected || is_active || is_dragged || is_hovered {
             Style::default().fg(p.text).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(p.subtext0)
@@ -1283,22 +1285,24 @@ fn render_workspace_list(
 
     if app.mouse_capture && list_bottom > area.y {
         let new_rect = app.sidebar_new_button_rect();
+        let new_fg = if app.is_new_button_hovered() { p.text } else { p.overlay0 };
         frame.render_widget(
-            Paragraph::new(Span::styled(" new", Style::default().fg(p.overlay0))),
+            Paragraph::new(Span::styled(" new", Style::default().fg(new_fg))),
             new_rect,
         );
 
         let menu_rect = app.global_launcher_rect();
+        let menu_fg = if app.is_menu_button_hovered() { p.text } else { p.overlay0 };
         let menu_line = if app.global_menu_attention_badge_visible() {
             Line::from(vec![
                 Span::styled(
                     "● ",
                     Style::default().fg(p.accent).add_modifier(Modifier::BOLD),
                 ),
-                Span::styled("menu", Style::default().fg(p.overlay0)),
+                Span::styled("menu", Style::default().fg(menu_fg)),
             ])
         } else {
-            Line::from(vec![Span::styled("menu", Style::default().fg(p.overlay0))])
+            Line::from(vec![Span::styled("menu", Style::default().fg(menu_fg))])
         };
         frame.render_widget(
             Paragraph::new(menu_line).alignment(Alignment::Right),
@@ -1370,6 +1374,7 @@ fn render_agent_detail(
     let scroll = app.agent_panel_scroll.min(metrics.max_offset_from_bottom);
     let mut row_y = body.y;
     let body_bottom = body.y + body.height;
+    let hovered_agent = app.hovered_agent_details();
     for (index, detail) in details.iter().enumerate().skip(scroll) {
         let label_color = state_label_color(detail.state, detail.seen, p);
         let rows = resolved_agent_rows(app, detail);
@@ -1384,7 +1389,8 @@ fn render_agent_detail(
         } else {
             Style::default()
         };
-        let name_style = if is_active {
+        let is_hovered = hovered_agent == Some((detail.ws_idx, detail.tab_idx, detail.pane_id));
+        let name_style = if is_active || is_hovered {
             Style::default().fg(p.text).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(p.subtext0).add_modifier(Modifier::BOLD)
@@ -1395,7 +1401,10 @@ fn render_agent_detail(
             Style::default().fg(label_color).add_modifier(Modifier::DIM)
         };
         let agent_style = Style::default().fg(p.overlay0).add_modifier(Modifier::DIM);
-        let state_icon = agent_icon(detail.state, detail.seen, app.spinner_tick, p);
+        let mut state_icon = agent_icon(detail.state, detail.seen, app.spinner_tick, p);
+        if is_hovered {
+            state_icon.1 = Style::default().fg(p.text);
+        }
 
         for (row_index, resolved) in rows.iter().take(height as usize).enumerate() {
             let mut spans = vec![Span::raw(if row_index == 0 { " " } else { "   " })];
