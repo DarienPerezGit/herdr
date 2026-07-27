@@ -284,12 +284,15 @@ pub(super) fn render_tab_bar(app: &AppState, frame: &mut Frame, area: Rect) {
         && last_visible_idx.is_some_and(|idx| idx + 1 < ws.tabs.len());
 
     if app.mouse_capture && app.view.tab_scroll_left_hit_area.width > 0 {
+        let left_hovered = app.is_tab_scroll_left_hovered();
         let style = if can_scroll_left {
-            Style::default().fg(p.overlay1).bg(p.surface0)
+            let bg = if left_hovered { p.surface1 } else { p.surface0 };
+            Style::default().fg(p.overlay1).bg(bg)
         } else {
+            let bg = if left_hovered { p.surface1 } else { p.surface0 };
             Style::default()
                 .fg(p.overlay0)
-                .bg(p.surface0)
+                .bg(bg)
                 .add_modifier(Modifier::DIM)
         };
         frame.render_widget(
@@ -299,12 +302,23 @@ pub(super) fn render_tab_bar(app: &AppState, frame: &mut Frame, area: Rect) {
     }
 
     if app.mouse_capture && app.view.tab_scroll_right_hit_area.width > 0 {
+        let right_hovered = app.is_tab_scroll_right_hovered();
         let style = if can_scroll_right {
-            Style::default().fg(p.overlay1).bg(p.surface0)
+            let bg = if right_hovered {
+                p.surface1
+            } else {
+                p.surface0
+            };
+            Style::default().fg(p.overlay1).bg(bg)
         } else {
+            let bg = if right_hovered {
+                p.surface1
+            } else {
+                p.surface0
+            };
             Style::default()
                 .fg(p.overlay0)
-                .bg(p.surface0)
+                .bg(bg)
                 .add_modifier(Modifier::DIM)
         };
         frame.render_widget(
@@ -321,6 +335,7 @@ pub(super) fn render_tab_bar(app: &AppState, frame: &mut Frame, area: Rect) {
             continue;
         }
         let active = idx == ws.active_tab;
+        let hovered = Some(idx) == app.hovered_tab_idx();
         let style = if active {
             let base = Style::default().fg(panel_contrast_fg(p)).bg(p.accent);
             if tab.is_auto_named() {
@@ -328,6 +343,8 @@ pub(super) fn render_tab_bar(app: &AppState, frame: &mut Frame, area: Rect) {
             } else {
                 base.add_modifier(Modifier::BOLD)
             }
+        } else if hovered {
+            Style::default().fg(p.text).bg(p.surface0)
         } else if tab.is_auto_named() {
             Style::default()
                 .fg(p.overlay0)
@@ -361,8 +378,13 @@ pub(super) fn render_tab_bar(app: &AppState, frame: &mut Frame, area: Rect) {
     }
 
     if app.mouse_capture && app.view.new_tab_hit_area.width > 0 {
+        let fg = if app.is_new_tab_hovered() {
+            p.text
+        } else {
+            p.overlay1
+        };
         frame.render_widget(
-            Paragraph::new(" + ").style(Style::default().fg(p.overlay1)),
+            Paragraph::new(" + ").style(Style::default().fg(fg)),
             app.view.new_tab_hit_area,
         );
     }
@@ -503,5 +525,93 @@ mod tests {
 
         let row = buffer_row_text(terminal.backend().buffer(), app.view.tab_bar_rect, 0);
         assert!(row.contains('馈'), "tab row: {row:?}");
+    }
+
+    #[test]
+    fn inactive_tab_uses_text_foreground_when_hovered() {
+        let mut app = AppState::test_new();
+        let mut ws = Workspace::test_new("test");
+        ws.test_add_tab(Some("second"));
+        ws.active_tab = 0;
+
+        app.active = Some(0);
+        app.workspaces = vec![ws];
+        app.view.tab_bar_rect = Rect::new(0, 0, 40, 1);
+        let view = compute_tab_bar_view(&app.workspaces[0], app.view.tab_bar_rect, 0, true, false);
+        app.view.tab_hit_areas = view.tab_hit_areas;
+        app.view.new_tab_hit_area = view.new_tab_hit_area;
+
+        // Hover the second (inactive) tab.
+        let rect = app.view.tab_hit_areas[1];
+        app.last_mouse_position = Some((rect.x + 1, rect.y));
+
+        let backend = TestBackend::new(40, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| render_tab_bar(&app, frame, app.view.tab_bar_rect))
+            .unwrap();
+
+        let style = terminal.backend().buffer()[(rect.x + 1, rect.y)].style();
+        assert_eq!(style.fg, Some(app.palette.text));
+        assert_eq!(style.bg, Some(app.palette.surface0));
+    }
+
+    #[test]
+    fn new_tab_button_uses_text_foreground_when_hovered() {
+        let mut app = AppState::test_new();
+        let ws = Workspace::test_new("test");
+
+        app.active = Some(0);
+        app.workspaces = vec![ws];
+        app.view.tab_bar_rect = Rect::new(0, 0, 40, 1);
+        let view = compute_tab_bar_view(&app.workspaces[0], app.view.tab_bar_rect, 0, true, true);
+        app.view.tab_hit_areas = view.tab_hit_areas;
+        app.view.new_tab_hit_area = view.new_tab_hit_area;
+
+        let rect = app.view.new_tab_hit_area;
+        assert!(rect.width > 0, "new tab hit area should be present");
+        app.last_mouse_position = Some((rect.x + 1, rect.y));
+
+        let backend = TestBackend::new(40, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| render_tab_bar(&app, frame, app.view.tab_bar_rect))
+            .unwrap();
+
+        let style = terminal.backend().buffer()[(rect.x + 1, rect.y)].style();
+        assert_eq!(style.fg, Some(app.palette.text));
+    }
+
+    #[test]
+    fn tab_scroll_buttons_use_surface1_background_when_hovered() {
+        let mut app = AppState::test_new();
+        let mut ws = Workspace::test_new("test");
+        // Add enough tabs to force overflow and scroll buttons.
+        for i in 1..=10 {
+            ws.test_add_tab(Some(&format!("tab{i}")));
+        }
+        ws.active_tab = ws.tabs.len() - 1;
+
+        app.active = Some(0);
+        app.workspaces = vec![ws];
+        app.view.tab_bar_rect = Rect::new(0, 0, 30, 1);
+        let view = compute_tab_bar_view(&app.workspaces[0], app.view.tab_bar_rect, 0, true, true);
+        app.view.tab_hit_areas = view.tab_hit_areas;
+        app.view.tab_scroll_left_hit_area = view.scroll_left_hit_area;
+        app.view.tab_scroll_right_hit_area = view.scroll_right_hit_area;
+        app.view.new_tab_hit_area = view.new_tab_hit_area;
+
+        let rect = app.view.tab_scroll_left_hit_area;
+        assert!(rect.width > 0, "left scroll button should be present");
+        app.last_mouse_position = Some((rect.x + 1, rect.y));
+
+        let backend = TestBackend::new(30, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| render_tab_bar(&app, frame, app.view.tab_bar_rect))
+            .unwrap();
+
+        let style = terminal.backend().buffer()[(rect.x + 1, rect.y)].style();
+        assert_eq!(style.bg, Some(app.palette.surface1));
     }
 }

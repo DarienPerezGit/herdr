@@ -44,6 +44,7 @@ mod overlays;
 mod selection;
 mod settings;
 mod sidebar;
+mod tabs;
 mod terminal;
 
 pub(crate) use self::{
